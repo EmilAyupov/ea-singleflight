@@ -26,7 +26,12 @@ class SingleFlight:
             flight = self._flights.get(key)
 
             if flight is None:
-                task = asyncio.create_task(fn())
+                coro = fn()
+
+                if not asyncio.iscoroutine(coro):
+                    raise TypeError("fn must return a coroutine")
+
+                task = asyncio.create_task(coro)
                 flight = Flight(task=task)
                 self._flights[key] = flight
 
@@ -49,7 +54,7 @@ class SingleFlight:
         ):
             del self._flights[key]
 
-    def _on_task_done(self, key: str, flight: Flight["Any"]) -> None:
+    def _on_task_done(self, key: str, flight: Flight[Any]) -> None:
         if not flight.task.cancelled():
             flight.task.exception()
 

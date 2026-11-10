@@ -1,8 +1,9 @@
 import asyncio
+from collections.abc import Callable, Coroutine
+from typing import Any, cast
 
 import pytest
 
-# from devtools import debug
 from singleflight import SingleFlight
 
 
@@ -262,3 +263,171 @@ async def test_rejoining_client_with_same_key_receives_original_result_without_r
 
     assert result == "result"
     assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_flight_is_cleaned_after_success() -> None:
+    group = SingleFlight()
+
+    async def operation() -> str:
+        return "result"
+
+    task = asyncio.create_task(group.do("user:123", operation))
+
+    result = await task
+
+    assert result == "result"
+    assert group._flights == {}
+
+
+@pytest.mark.asyncio
+async def test_flight_is_cleaned_after_exception() -> None:
+    group = SingleFlight()
+
+    async def operation() -> str:
+        raise RuntimeError("operation failed")
+
+    task = asyncio.create_task(group.do("user:123", operation))
+
+    with pytest.raises(RuntimeError, match="operation failed"):
+        await task
+
+    assert group._flights == {}
+
+
+@pytest.mark.asyncio
+async def test_flight_is_cleaned_after_operation_cancelled() -> None:
+    group = SingleFlight()
+
+    async def operation() -> str:
+        raise asyncio.CancelledError
+
+    task = asyncio.create_task(group.do("user:123", operation))
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert group._flights == {}
+
+
+@pytest.mark.asyncio
+async def test_sync_function_raises_type_error() -> None:
+    group = SingleFlight()
+
+    def operation() -> str:
+        return "result"
+
+    task = asyncio.create_task(
+        group.do("user:123", cast(Callable[[], Coroutine[Any, Any, str]], operation))
+    )
+
+    with pytest.raises(TypeError, match="fn must return a coroutine"):
+        await task
+
+    assert group._flights == {}
+
+
+@pytest.mark.asyncio
+async def test_sync_function_raises_type_error_and_success() -> None:
+    group = SingleFlight()
+    calls = 0
+
+    def operation() -> str:
+        nonlocal calls
+        calls += 1
+        return "success"
+
+    async def async_operation() -> str:
+        nonlocal calls
+        calls += 1
+        return "success"
+
+    task1 = asyncio.create_task(
+        group.do("user:123", cast(Callable[[], Coroutine[Any, Any, str]], operation))
+    )
+
+    with pytest.raises(TypeError, match="fn must return a coroutine"):
+        await task1
+
+    task2 = asyncio.create_task(group.do("user:123", async_operation))
+
+    assert await task2 == "success"
+    assert calls == 2
+
+
+@pytest.mark.asyncio
+async def test_same_key_can_be_reused_after_exception() -> None:
+    group = SingleFlight()
+    calls = 0
+
+    async def failing_operation() -> str:
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("operation failed")
+
+    async def successful_operation() -> str:
+        nonlocal calls
+        calls += 1
+        return "success"
+
+    task1 = asyncio.create_task(group.do("user:123", failing_operation))
+
+    with pytest.raises(RuntimeError, match="operation failed"):
+        await task1
+
+    task2 = asyncio.create_task(group.do("user:123", successful_operation))
+
+    assert await task2 == "success"
+    assert calls == 2
+
+
+@pytest.mark.asyncio
+async def test_exception_for_one_key_does_not_affect_another() -> None:
+    group = SingleFlight()
+    calls = 0
+
+    async def failing_operation() -> str:
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("operation failed")
+
+    async def successful_operation() -> str:
+        nonlocal calls
+        calls += 1
+        return "success"
+
+    results = await asyncio.gather(
+        group.do("user:123", failing_operation),
+        group.do("user:456", successful_operation),
+        return_exceptions=True,
+    )
+
+    first, second = results
+
+    assert isinstance(first, RuntimeError)
+    assert first.args == ("operation failed",)
+
+    assert second == "success"
+    assert calls == 2
+    assert group._flights == {}
+
+
+@pytest.mark.asyncio
+async def test_sync_function_raising_exception_does_not_leave_flight() -> None:
+    group = SingleFlight()
+
+    def operation():
+        raise RuntimeError("failed before coroutine creation")
+
+    async def successful_operation() -> str:
+        return "success"
+
+    task = asyncio.create_task(group.do("user:123", operation))
+
+    with pytest.raises(RuntimeError, match="failed before coroutine creation"):
+        await task
+
+    result = await group.do("user:123", successful_operation)
+
+    assert result == "success"
+    assert group._flights == {}
