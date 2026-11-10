@@ -1,2 +1,3 @@
-def hello() -> str:
-    return "Hello from singleflight!"
+from .main import SingleFlight
+
+__all__ = ["SingleFlight"]
