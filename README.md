@@ -16,15 +16,23 @@ When multiple callers request the same operation using the same key, only one op
 
 ## Requirements
 
-- Python 3.12+
+- Python 3.13+
 
 ## Installation
 
+The package is distributed as `ea-singleflight` and imported as `singleflight`.
+
+Once published on PyPI, install it with:
+
 ```bash
-pip install singleflight
+pip install ea-singleflight
 ```
 
-_Note: Update the package name or installation instructions if the project is published under a different distribution name._
+Until then, you can install it directly from GitHub:
+
+```bash
+pip install git+https://github.com/EmilAyupov/ea-singleflight.git
+```
 
 ## Quick Start
 
@@ -143,8 +151,8 @@ The result of the shared asynchronous operation.
 Clone the repository:
 
 ```bash
-git clone <repository-url>
-cd singleflight
+git clone https://github.com/EmilAyupov/ea-singleflight.git
+cd ea-singleflight
 ```
 
 Install dependencies:
@@ -171,9 +179,4 @@ The project uses:
 
 ## License
 
-Add your chosen license here.
-
-## License
-
-This project is licensed under the MIT License.
-See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

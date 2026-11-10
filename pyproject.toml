@@ -16,6 +16,11 @@ classifiers = [
     "Typing :: Typed",
 ]
 
+[project.urls]
+Homepage = "https://github.com/EmilAyupov/ea-singleflight"
+Repository = "https://github.com/EmilAyupov/ea-singleflight"
+Issues = "https://github.com/EmilAyupov/ea-singleflight/issues"
+
 [tool.pyrefly]
 project-includes = ["**/*.py*", "**/*.ipynb"]
 
